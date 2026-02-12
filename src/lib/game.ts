@@ -23,7 +23,7 @@ export function calculateRoundScore(
 }
 
 export function generateTotalRounds(): number {
-  return Math.floor(Math.random() * 48) + 3; // 3-50 rounds
+  return Math.floor(Math.random() * 28) + 3; // 3-30 rounds
 }
 
 export function buildGameContext(
@@ -40,7 +40,7 @@ export function buildGameContext(
   personalityTags: string[]
 ): string {
   let context = `你正在与「${opponentName}」进行囚徒困境博弈。\n`;
-  context += `当前是第 ${roundNumber}/${totalRounds} 轮。\n`;
+  context += `当前是第 ${roundNumber} 轮。\n`;
 
   if (personalityTags.length > 0) {
     context += `你的性格标签：${personalityTags.join("、")}。\n`;

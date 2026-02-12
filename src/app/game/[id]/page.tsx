@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useState, use, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -41,6 +41,13 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const [showingResult, setShowingResult] = useState(false);
   const [phase, setPhase] = useState<"idle" | "thinking" | "reveal" | "done">("idle");
   const [userId, setUserId] = useState("");
+  const [autoStarted, setAutoStarted] = useState(false);
+  const gameRef = useRef<GameState | null>(null);
+  const playingRef = useRef(false);
+
+  useEffect(() => {
+    gameRef.current = game;
+  }, [game]);
 
   useEffect(() => {
     Promise.all([
@@ -57,8 +64,10 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       .catch(() => router.replace("/match"));
   }, [id, router]);
 
-  const playRound = async () => {
-    if (playing || !game) return;
+  const playRound = useCallback(async () => {
+    const currentGame = gameRef.current;
+    if (playingRef.current || !currentGame) return;
+    playingRef.current = true;
     setPlaying(true);
     setPhase("thinking");
     setCurrentRound(null);
@@ -68,7 +77,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       const res = await fetch("/api/game/play", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gameId: game.id }),
+        body: JSON.stringify({ gameId: currentGame.id }),
       });
       const data = await res.json();
 
@@ -100,16 +109,35 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       );
 
       if (data.game.isGameOver) {
-        setTimeout(() => setPhase("done"), 2000);
+        setTimeout(() => setPhase("done"), 3000);
       } else {
-        setTimeout(() => setPhase("idle"), 2000);
+        // Auto-play next round after 3 seconds
+        setTimeout(() => {
+          playingRef.current = false;
+          setPlaying(false);
+          playRound();
+        }, 3000);
+        return; // Don't reset playing in finally
       }
     } catch {
       setPhase("idle");
     } finally {
+      playingRef.current = false;
       setPlaying(false);
     }
-  };
+  }, []);
+
+  // Auto-start game when loaded
+  useEffect(() => {
+    if (game && game.status === "playing" && !autoStarted && !playing) {
+      setAutoStarted(true);
+      // Small delay for user to see the scoreboard
+      const timer = setTimeout(() => {
+        playRound();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [game, autoStarted, playing, playRound]);
 
   if (!game) {
     return (
@@ -140,7 +168,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
             博弈竞技场
           </Link>
           <div className="text-sm text-ink-muted">
-            第 {game.currentRound}/{game.totalRounds} 轮
+            第 {game.currentRound} 轮
           </div>
         </div>
       </nav>
@@ -166,7 +194,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
                 <span className="text-3xl font-bold text-gradient-steel">{opponentScore}</span>
               </div>
               <p className="text-xs text-ink-muted mt-1">
-                {game.status === "finished" ? "最终比分" : `第 ${game.currentRound}/${game.totalRounds} 轮`}
+                {game.status === "finished" ? "最终比分" : `第 ${game.currentRound} 轮`}
               </p>
             </div>
 
@@ -297,11 +325,6 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
 
         {/* Actions */}
         <div className="text-center mt-8">
-          {phase === "idle" && game.status === "playing" && (
-            <button onClick={playRound} className="btn-primary text-lg px-10 py-4">
-              开始第 {game.currentRound + 1} 轮
-            </button>
-          )}
           {phase === "done" && (
             <div className="animate-fade-in-up space-y-4">
               <div className="game-card p-8 text-center">

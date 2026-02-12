@@ -170,7 +170,7 @@ export default function MatchPage() {
                   </div>
                 </div>
                 <h2 className="font-display text-3xl mb-2 text-gradient-gold">匹配成功！</h2>
-                <p className="text-ink-muted">共 {matchedGame.totalRounds} 轮博弈，即将开始...</p>
+                <p className="text-ink-muted">即将开始博弈...</p>
               </div>
             </>
           )}

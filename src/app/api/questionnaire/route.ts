@@ -37,9 +37,10 @@ export async function GET() {
 }
 
 // POST: Submit a questionnaire answer
-// Supports two modes:
+// Supports three modes:
 //   { questionIndex, mode: "agent" }       — Agent auto-answer via Chat API
 //   { questionIndex, mode: "user", answer } — User provides their own answer
+//   { mode: "auto_all" }                   — Agent auto-answers ALL remaining questions
 export async function POST(request: NextRequest) {
   const { prisma } = await import("@/lib/prisma");
   const user = await getCurrentUser();
@@ -48,7 +49,116 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { questionIndex, mode, answer: userAnswer } = body;
+  const { mode } = body;
+
+  // --- auto_all mode: answer all remaining questions at once ---
+  if (mode === "auto_all") {
+    const accessToken = await getUserAccessToken(user.id);
+    if (!accessToken) {
+      return NextResponse.json({ error: "Token 无效" }, { status: 401 });
+    }
+
+    try {
+      let questionnaire = await prisma.questionnaire.findUnique({
+        where: { userId: user.id },
+      });
+
+      const currentAnswers: Array<{
+        questionIndex: number;
+        question: string;
+        answer: string;
+        source: string;
+      }> = questionnaire ? JSON.parse(questionnaire.answers) : [];
+
+      const answeredIndices = new Set(
+        currentAnswers.map((a) => a.questionIndex)
+      );
+
+      const newAnswers: Array<{
+        questionIndex: number;
+        question: string;
+        answer: string;
+        source: string;
+      }> = [];
+
+      // Answer all remaining questions sequentially
+      for (let i = 0; i < QUESTIONNAIRE_QUESTIONS.length; i++) {
+        if (answeredIndices.has(i)) continue;
+        const questionText = buildQuestionnairePrompt(i);
+        if (!questionText) continue;
+
+        const chatResult = await chatWithSecondMe(accessToken, questionText);
+        const entry = {
+          questionIndex: i,
+          question: questionText,
+          answer: chatResult.text,
+          source: "agent",
+        };
+        currentAnswers.push(entry);
+        newAnswers.push(entry);
+      }
+
+      // Save all answers
+      if (!questionnaire) {
+        questionnaire = await prisma.questionnaire.create({
+          data: {
+            userId: user.id,
+            answers: JSON.stringify(currentAnswers),
+            completed: true,
+          },
+        });
+      } else {
+        questionnaire = await prisma.questionnaire.update({
+          where: { id: questionnaire.id },
+          data: {
+            answers: JSON.stringify(currentAnswers),
+            completed: true,
+          },
+        });
+      }
+
+      // Analyze personality
+      let personalityTags = null;
+      const allAnswersText = currentAnswers
+        .map(
+          (a) => `问题：${a.question}\n回答：${a.answer}`
+        )
+        .join("\n\n");
+
+      try {
+        const analysis = await actWithSecondMe(
+          accessToken,
+          allAnswersText,
+          PERSONALITY_ANALYSIS_ACTION_CONTROL
+        );
+        personalityTags = analysis.result;
+
+        await prisma.questionnaire.update({
+          where: { id: questionnaire.id },
+          data: {
+            personalityTags: JSON.stringify(personalityTags),
+          },
+        });
+      } catch (err) {
+        console.error("Personality analysis failed:", err);
+      }
+
+      return NextResponse.json({
+        newAnswers,
+        completed: true,
+        personalityTags,
+      });
+    } catch (error) {
+      console.error("Auto-all error:", error);
+      return NextResponse.json(
+        { error: "AI 自动填写失败" },
+        { status: 500 }
+      );
+    }
+  }
+
+  // --- Single question mode ---
+  const { questionIndex, answer: userAnswer } = body;
 
   const question = buildQuestionnairePrompt(questionIndex);
   if (!question) {

@@ -34,6 +34,7 @@ export default function QuestionnairePage() {
   const [completed, setCompleted] = useState(false);
   const [personalityTags, setPersonalityTags] = useState<Record<string, unknown> | null>(null);
   const [userName, setUserName] = useState("");
+  const [autoFilling, setAutoFilling] = useState(false);
 
   // User input state
   const [userInput, setUserInput] = useState("");
@@ -249,6 +250,79 @@ export default function QuestionnairePage() {
     setEditText("");
   };
 
+  // AI auto-fill all remaining questions
+  const handleAutoFillAll = async () => {
+    if (loading || autoFilling || completed) return;
+    setAutoFilling(true);
+    setWaitingForInput(false);
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+
+    try {
+      const res = await fetch("/api/questionnaire", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "auto_all" }),
+      });
+      const data = await res.json();
+
+      if (data.error) {
+        setMessages((prev) => [
+          ...prev,
+          { type: "system", content: `错误：${data.error}` },
+        ]);
+        setAutoFilling(false);
+        setWaitingForInput(true);
+        return;
+      }
+
+      // Animate each new answer appearing one by one
+      const newAnswers = data.newAnswers as AnswerRecord[];
+      for (let i = 0; i < newAnswers.length; i++) {
+        const a = newAnswers[i];
+        await new Promise<void>((resolve) => {
+          setTimeout(() => {
+            setMessages((prev) => [
+              ...prev,
+              { type: "question", content: a.question },
+            ]);
+            setTimeout(() => {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  type: "answer",
+                  content: a.answer,
+                  questionIndex: a.questionIndex,
+                  source: "agent",
+                  editable: true,
+                },
+              ]);
+              setCurrentIndex(a.questionIndex + 1);
+              resolve();
+            }, 400);
+          }, i === 0 ? 0 : 600);
+        });
+      }
+
+      setCompleted(true);
+      setPersonalityTags(data.personalityTags);
+      setMessages((prev) => [
+        ...prev,
+        { type: "system", content: "问卷完成！正在分析性格特征..." },
+      ]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        { type: "system", content: "AI 自动填写失败，请重试" },
+      ]);
+      setWaitingForInput(true);
+    } finally {
+      setAutoFilling(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col board-pattern">
       {/* Header */}
@@ -361,7 +435,18 @@ export default function QuestionnairePage() {
       {/* Bottom action area */}
       <div className="sticky bottom-0 bg-cream/80 backdrop-blur-md border-t border-card-border">
         <div className="max-w-2xl mx-auto px-4 py-4">
-          {completed ? (
+          {autoFilling ? (
+            <div className="text-center py-4 space-y-3">
+              <div className="flex items-center justify-center gap-2">
+                <div className="flex gap-1.5">
+                  <span className="w-2.5 h-2.5 bg-gold rounded-full animate-thinking" style={{ animationDelay: "0s" }} />
+                  <span className="w-2.5 h-2.5 bg-gold rounded-full animate-thinking" style={{ animationDelay: "0.3s" }} />
+                  <span className="w-2.5 h-2.5 bg-gold rounded-full animate-thinking" style={{ animationDelay: "0.6s" }} />
+                </div>
+              </div>
+              <p className="text-sm text-ink-muted">AI 正在自动填写所有问题，请稍候...</p>
+            </div>
+          ) : completed ? (
             <div className="text-center space-y-4">
               {personalityTags && (
                 <div className="game-card p-4 animate-fade-in-up">
@@ -419,12 +504,20 @@ export default function QuestionnairePage() {
               </div>
 
               {/* Quick agent answer button */}
-              <button
-                onClick={handleAgentAnswer}
-                className="w-full py-2.5 rounded-xl border-2 border-dashed border-steel/20 text-sm text-steel hover:bg-steel/5 hover:border-steel/40 transition-all"
-              >
-                跳过，让 {userName} 自动回答
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAgentAnswer}
+                  className="flex-1 py-2.5 rounded-xl border-2 border-dashed border-steel/20 text-sm text-steel hover:bg-steel/5 hover:border-steel/40 transition-all"
+                >
+                  跳过，让 {userName} 自动回答
+                </button>
+                <button
+                  onClick={handleAutoFillAll}
+                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-gold to-gold-dark text-sm text-white font-medium hover:shadow-lg transition-all"
+                >
+                  AI 一键自动填写所有问题
+                </button>
+              </div>
             </div>
           ) : loading ? (
             <div className="text-center py-2 text-sm text-ink-muted">
