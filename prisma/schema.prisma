@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String   @id @default(cuid())
+  secondmeUserId String   @unique @map("secondme_user_id")
+  name           String?
+  email          String?
+  avatarUrl      String?  @map("avatar_url")
+  accessToken    String   @map("access_token")
+  refreshToken   String   @map("refresh_token")
+  tokenExpiresAt DateTime @map("token_expires_at")
+  totalScore     Int      @default(0) @map("total_score")
+  gamesPlayed    Int      @default(0) @map("games_played")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  questionnaire Questionnaire?
+  gamesAsAgent1 Game[]         @relation("agent1")
+  gamesAsAgent2 Game[]         @relation("agent2")
+
+  @@map("users")
+}
+
+model Questionnaire {
+  id              String   @id @default(cuid())
+  userId          String   @unique @map("user_id")
+  answers         String   @map("answers")
+  personalityTags String?  @map("personality_tags")
+  completed       Boolean  @default(false)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("questionnaires")
+}
+
+model Game {
+  id          String   @id @default(cuid())
+  agent1Id    String   @map("agent1_id")
+  agent2Id    String   @map("agent2_id")
+  totalRounds Int      @map("total_rounds")
+  currentRound Int     @default(0) @map("current_round")
+  agent1Score Int      @default(0) @map("agent1_score")
+  agent2Score Int      @default(0) @map("agent2_score")
+  status      String   @default("playing")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  agent1 User    @relation("agent1", fields: [agent1Id], references: [id])
+  agent2 User    @relation("agent2", fields: [agent2Id], references: [id])
+  rounds Round[]
+
+  @@map("games")
+}
+
+model Round {
+  id            String   @id @default(cuid())
+  gameId        String   @map("game_id")
+  roundNumber   Int      @map("round_number")
+  agent1Choice  String?  @map("agent1_choice")
+  agent2Choice  String?  @map("agent2_choice")
+  agent1Reason  String?  @map("agent1_reason")
+  agent2Reason  String?  @map("agent2_reason")
+  agent1Points  Int      @default(0) @map("agent1_points")
+  agent2Points  Int      @default(0) @map("agent2_points")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  game Game @relation(fields: [gameId], references: [id])
+
+  @@map("rounds")
+}
