@@ -9,6 +9,9 @@ import {
 import { GAME_DECISION_ACTION_CONTROL } from "@/lib/questionnaire";
 import { actWithSecondMe } from "@/lib/secondme";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 // POST: Play a round in a game
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();

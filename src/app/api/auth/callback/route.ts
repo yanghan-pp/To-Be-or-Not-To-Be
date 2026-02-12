@@ -3,6 +3,9 @@ import { exchangeCodeForToken, getSecondMeUserInfo } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { cookies } from "next/headers";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
 

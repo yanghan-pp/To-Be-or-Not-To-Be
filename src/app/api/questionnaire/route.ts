@@ -8,6 +8,9 @@ import {
 } from "@/lib/questionnaire";
 import { chatWithSecondMe, actWithSecondMe } from "@/lib/secondme";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 // GET: Get current questionnaire status
 export async function GET() {
   const user = await getCurrentUser();

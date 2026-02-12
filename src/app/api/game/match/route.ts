@@ -3,6 +3,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateTotalRounds } from "@/lib/game";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 // POST: Find a match for the current user
 export async function POST() {
   const user = await getCurrentUser();
