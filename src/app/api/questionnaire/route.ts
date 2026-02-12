@@ -163,6 +163,8 @@ export async function POST(request: NextRequest) {
 
 // PUT: Edit an existing answer
 export async function PUT(request: NextRequest) {
+  const { prisma } = await import("@/lib/prisma");
+
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
