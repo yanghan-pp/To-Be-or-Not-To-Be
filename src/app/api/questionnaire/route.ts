@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, getUserAccessToken } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import {
   QUESTIONNAIRE_QUESTIONS,
   buildQuestionnairePrompt,
@@ -13,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 // GET: Get current questionnaire status
 export async function GET() {
+  const { prisma } = await import("@/lib/prisma");
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });
@@ -41,6 +41,7 @@ export async function GET() {
 //   { questionIndex, mode: "agent" }       — Agent auto-answer via Chat API
 //   { questionIndex, mode: "user", answer } — User provides their own answer
 export async function POST(request: NextRequest) {
+  const { prisma } = await import("@/lib/prisma");
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });

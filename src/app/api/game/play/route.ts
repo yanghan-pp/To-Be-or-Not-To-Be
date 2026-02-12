@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, getUserAccessToken } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import {
   calculateRoundScore,
   buildGameContext,
@@ -14,6 +13,7 @@ export const dynamic = "force-dynamic";
 
 // POST: Play a round in a game
 export async function POST(request: NextRequest) {
+  const { prisma } = await import("@/lib/prisma");
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "未登录" }, { status: 401 });

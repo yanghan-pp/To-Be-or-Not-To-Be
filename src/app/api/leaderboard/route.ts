@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const { prisma } = await import("@/lib/prisma");
   const topPlayers = await prisma.user.findMany({
     where: { gamesPlayed: { gt: 0 } },
     orderBy: { totalScore: "desc" },
