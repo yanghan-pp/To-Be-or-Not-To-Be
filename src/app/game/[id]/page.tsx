@@ -4,6 +4,14 @@ import { useEffect, useState, use, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+interface LeaderboardPlayer {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  totalScore: number;
+  gamesPlayed: number;
+}
+
 interface RoundData {
   roundNumber: number;
   agent1Choice: string;
@@ -43,6 +51,9 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const [userId, setUserId] = useState("");
   const [autoStarted, setAutoStarted] = useState(false);
   const [redirectCountdown, setRedirectCountdown] = useState(10);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardPlayer[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const gameRef = useRef<GameState | null>(null);
   const playingRef = useRef(false);
 
@@ -157,6 +168,16 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
     return () => clearInterval(interval);
   }, [phase, router]);
 
+  const openLeaderboard = useCallback(() => {
+    setShowLeaderboard(true);
+    setLeaderboardLoading(true);
+    fetch("/api/leaderboard")
+      .then((r) => r.json())
+      .then((data) => setLeaderboardData(data.leaderboard || []))
+      .catch(() => {})
+      .finally(() => setLeaderboardLoading(false));
+  }, []);
+
   if (!game) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -185,8 +206,16 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
           <Link href="/match" className="font-display text-2xl text-gradient-gold">
             博弈竞技场
           </Link>
-          <div className="text-sm text-ink-muted">
-            第 {game.currentRound} 轮
+          <div className="flex items-center gap-4">
+            <button
+              onClick={openLeaderboard}
+              className="text-sm text-ink-muted hover:text-gold transition-colors"
+            >
+              排行榜
+            </button>
+            <span className="text-sm text-ink-muted">
+              第 {game.currentRound} 轮
+            </span>
           </div>
         </div>
       </nav>
@@ -375,14 +404,96 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
                 <button onClick={() => router.push("/match")} className="btn-primary">
                   立即返回大厅
                 </button>
-                <Link href="/leaderboard" className="btn-secondary">
+                <button onClick={openLeaderboard} className="btn-secondary">
                   查看排行榜
-                </Link>
+                </button>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Leaderboard Overlay */}
+      {showLeaderboard && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            onClick={() => setShowLeaderboard(false)}
+          />
+          {/* Panel */}
+          <div className="relative w-full max-w-sm bg-cream shadow-2xl border-l border-card-border overflow-y-auto animate-slide-right">
+            <div className="sticky top-0 bg-cream/90 backdrop-blur-md border-b border-card-border px-5 py-4 flex items-center justify-between">
+              <h2 className="font-display text-xl text-gradient-gold">排行榜</h2>
+              <button
+                onClick={() => setShowLeaderboard(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-ink-muted hover:bg-ink/5 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="px-5 py-4">
+              {leaderboardLoading ? (
+                <div className="text-center py-12">
+                  <div className="flex gap-1.5 justify-center mb-3">
+                    <span className="w-2.5 h-2.5 bg-gold rounded-full animate-thinking" style={{ animationDelay: "0s" }} />
+                    <span className="w-2.5 h-2.5 bg-gold rounded-full animate-thinking" style={{ animationDelay: "0.3s" }} />
+                    <span className="w-2.5 h-2.5 bg-gold rounded-full animate-thinking" style={{ animationDelay: "0.6s" }} />
+                  </div>
+                  <p className="text-sm text-ink-muted">加载排行榜...</p>
+                </div>
+              ) : leaderboardData.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-4xl mb-3">🏆</p>
+                  <p className="text-ink-muted">暂无排行数据</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {leaderboardData.map((player, index) => (
+                    <div
+                      key={player.id}
+                      className={`game-card p-3.5 flex items-center gap-3 ${
+                        index === 0 ? "border-gold/30 bg-gold/3" : ""
+                      }`}
+                    >
+                      <div className={`rank-badge text-sm ${
+                        index === 0 ? "rank-1" : index === 1 ? "rank-2" : index === 2 ? "rank-3" : "bg-cream-dark text-ink-muted"
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow ${
+                        index === 0
+                          ? "bg-gradient-to-br from-gold to-gold-dark"
+                          : index === 1
+                          ? "bg-gradient-to-br from-gray-400 to-gray-500"
+                          : index === 2
+                          ? "bg-gradient-to-br from-amber-600 to-amber-700"
+                          : "bg-gradient-to-br from-ink-muted to-ink-light"
+                      }`}>
+                        {player.name?.[0] || "?"}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-medium text-sm truncate ${index === 0 ? "text-gold-dark" : ""}`}>
+                          {player.name || "匿名分身"}
+                        </p>
+                        <p className="text-xs text-ink-muted">{player.gamesPlayed} 场</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-lg font-bold ${index === 0 ? "text-gradient-gold" : "text-ink"}`}>
+                          {player.totalScore}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
