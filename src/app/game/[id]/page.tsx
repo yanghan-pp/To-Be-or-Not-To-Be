@@ -42,6 +42,7 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const [phase, setPhase] = useState<"idle" | "thinking" | "reveal" | "done">("idle");
   const [userId, setUserId] = useState("");
   const [autoStarted, setAutoStarted] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState(10);
   const gameRef = useRef<GameState | null>(null);
   const playingRef = useRef(false);
 
@@ -138,6 +139,23 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
       return () => clearTimeout(timer);
     }
   }, [game, autoStarted, playing, playRound]);
+
+  // Auto-redirect to match lobby after game ends
+  useEffect(() => {
+    if (phase !== "done") return;
+    setRedirectCountdown(10);
+    const interval = setInterval(() => {
+      setRedirectCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          router.push("/match");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [phase, router]);
 
   if (!game) {
     return (
@@ -340,14 +358,23 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
                     <p className="text-sm text-ink-muted">{opponent.name}</p>
                   </div>
                 </div>
-                <p className="text-lg font-medium">
+                <p className="text-lg font-medium mb-4">
                   {myScore > opponentScore ? "🎉 你的分身获胜！" : myScore < opponentScore ? "😢 你的分身落败" : "🤝 平局"}
+                </p>
+                <div className="h-1.5 bg-cream-dark rounded-full overflow-hidden max-w-xs mx-auto mb-2">
+                  <div
+                    className="h-full bg-gradient-to-r from-gold to-gold-dark rounded-full transition-all duration-1000"
+                    style={{ width: `${(redirectCountdown / 10) * 100}%` }}
+                  />
+                </div>
+                <p className="text-sm text-ink-muted">
+                  {redirectCountdown} 秒后自动返回大厅继续配对
                 </p>
               </div>
               <div className="flex gap-4 justify-center">
-                <Link href="/match" className="btn-primary">
-                  继续匹配
-                </Link>
+                <button onClick={() => router.push("/match")} className="btn-primary">
+                  立即返回大厅
+                </button>
                 <Link href="/leaderboard" className="btn-secondary">
                   查看排行榜
                 </Link>
