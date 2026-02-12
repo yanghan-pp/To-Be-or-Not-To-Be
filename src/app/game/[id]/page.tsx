@@ -54,6 +54,8 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardPlayer[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [matching, setMatching] = useState(false);
+  const redirectRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const gameRef = useRef<GameState | null>(null);
   const playingRef = useRef(false);
 
@@ -165,8 +167,34 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
         return prev - 1;
       });
     }, 1000);
-    return () => clearInterval(interval);
+    redirectRef.current = interval;
+    return () => {
+      clearInterval(interval);
+      redirectRef.current = null;
+    };
   }, [phase, router]);
+
+  const continueGame = useCallback(async () => {
+    if (matching) return;
+    // Stop auto-redirect
+    if (redirectRef.current) {
+      clearInterval(redirectRef.current);
+      redirectRef.current = null;
+    }
+    setMatching(true);
+    try {
+      const res = await fetch("/api/game/match", { method: "POST" });
+      const data = await res.json();
+      if (data.status === "matched" || data.status === "already_playing") {
+        router.push(`/game/${data.game.id}`);
+      } else {
+        // No opponent available, go to match lobby to wait
+        router.push("/match");
+      }
+    } catch {
+      router.push("/match");
+    }
+  }, [matching, router]);
 
   const openLeaderboard = useCallback(() => {
     setShowLeaderboard(true);
@@ -400,9 +428,12 @@ export default function GamePage({ params }: { params: Promise<{ id: string }> }
                   {redirectCountdown} 秒后自动返回大厅继续配对
                 </p>
               </div>
-              <div className="flex gap-4 justify-center">
-                <button onClick={() => router.push("/match")} className="btn-primary">
-                  立即返回大厅
+              <div className="flex gap-4 justify-center flex-wrap">
+                <button onClick={continueGame} disabled={matching} className="btn-primary">
+                  {matching ? "匹配中..." : "继续游戏"}
+                </button>
+                <button onClick={() => router.push("/match")} className="btn-secondary">
+                  返回大厅
                 </button>
                 <button onClick={openLeaderboard} className="btn-secondary">
                   查看排行榜
